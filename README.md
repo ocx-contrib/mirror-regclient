@@ -1,9 +1,15 @@
-# mirror-regsync
+# mirror-regclient
 
-OCX mirror for [regsync](https://github.com/regclient/regclient) (the
-registry mirroring tool from the regclient project). Publishes GitHub
-releases to `ocx.sh/regclient/regsync` with cascade tags after a smoke test
-per `(version, platform)`.
+OCX mirror repo for the [regclient](https://github.com/regclient/regclient)
+project. Currently publishes **regsync** (the registry mirroring tool) to
+`ocx.sh/regclient/regsync` with cascade tags after a smoke test per
+`(version, platform)`. regctl / regbot may be added later.
+
+The regsync spec lives at the repo root (`mirror.yml`). The OCX mirror
+generator is one-spec-per-repo — it writes `.github/workflows/` relative to
+the spec, and GitHub only runs root workflows with fixed filenames. Adding a
+second tool therefore needs a generator that emits per-tool workflow names;
+until then regsync stays at root.
 
 ## Editing
 
