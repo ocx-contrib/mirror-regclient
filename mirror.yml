@@ -1,0 +1,84 @@
+name: regsync
+target:
+  registry: ocx.sh
+  repository: regclient/regsync
+
+source:
+  type: github_release
+  owner: regclient
+  repo: regclient
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+assets:
+  # regclient ships raw, statically linked Go binaries (no archive) for each
+  # of its three tools; this mirror publishes regsync only. Anchored so the
+  # regctl/regbot binaries and the metadata.tgz sidecar never match.
+  linux/amd64:
+    - "^regsync-linux-amd64$"
+  linux/arm64:
+    - "^regsync-linux-arm64$"
+  darwin/amd64:
+    - "^regsync-darwin-amd64$"
+  darwin/arm64:
+    - "^regsync-darwin-arm64$"
+  windows/amd64:
+    - "^regsync-windows-amd64\\.exe$"
+  # Upstream ships no windows/arm64 binary (linux ppc64le/riscv64/s390x and
+  # freebsd/amd64 are intentionally out of the OCX standard platform set).
+
+asset_type:
+  # Raw binary on every platform — renamed to regsync (regsync.exe on Windows;
+  # the .exe is appended automatically when the downloaded asset carries it).
+  type: binary
+  name: regsync
+
+metadata:
+  default: metadata.json
+
+skip_prereleases: true
+cascade: true
+build_timestamp: none
+
+versions:
+  # v0.9.0 is the oldest release carrying GitHub per-asset digests (v0.8.0 and
+  # older have none), which verify.github_asset_digest requires.
+  min: "0.9.0"
+  new_per_run: 5
+  poll_interval: "0 */6 * * *"
+
+verify:
+  github_asset_digest: true
+
+concurrency:
+  max_downloads: 8
+  max_bundles: 4
+  max_pushes: 2
+  rate_limit_ms: 100
+  max_retries: 3
+  compression_threads: 0
+
+tests:
+  - name: smoke
+    script: tests/smoke.star
+
+platforms:
+  linux/amd64:
+    runner: ubuntu-latest
+  linux/arm64:
+    runner: ubuntu-24.04-arm
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 (GitHub's
+    # macos-13 Intel pool is exhausted and deadlocks the push job).
+    runner: macos-14
+    prefix: ["arch", "-x86_64"]
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures
