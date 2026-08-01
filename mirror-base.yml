@@ -1,0 +1,98 @@
+# Shared base for every spec in this repository (the regclient tool family).
+#
+# NOT a spec: it has no name/target/source and is never loaded on its own.
+# Everything a package owns — name, target, source, assets, asset_type,
+# bin_scan, metadata, catalog, tests, versions, annotations, announce — stays
+# in that package's own mirror.yml.
+#
+# regsync, regctl and regbot are built from ONE upstream repository and cut
+# from ONE tag, so every key below is genuinely repo-wide: same release cadence,
+# same asset naming, same measured linkage, same platform set.
+#
+# ⚠️ `extends:` is a SHALLOW merge of top-level keys. A spec that sets a key
+# below replaces that block OUTRIGHT — there is no per-key merge. `platforms:`
+# is where this bites: it carries BOTH the runner matrix and the container
+# legs, so a child that restates it to tweak one runner silently drops every
+# `containers:` entry. Nothing reds — the legs simply stop existing, and every
+# os.features claim in that spec goes back to being merely asserted. Restate
+# `platforms:` IN FULL or not at all.
+
+skip_prereleases: true
+cascade: true
+
+# `date`, not the `none` this repo carried as a single-package mirror. A
+# cascade tag (`latest`, `0`, `0.11`) re-points on every re-publish; without a
+# build segment the new manifest reuses the bare version tag and orphans the
+# prior digest for registry GC, breaking any `@sha256:` pin in a consumer's
+# ocx.lock. regclient tags are bare `vX.Y.Z` with no `+build` segment, so there
+# is nothing for the date stamp to collide with — the one case that forces
+# `none` (a version that already carries semver build metadata) does not apply.
+build_timestamp: date
+
+verify:
+  github_asset_digest: true
+
+concurrency:
+  # Assets are raw 11-13 MB single binaries, three tools to a release.
+  max_downloads: 8
+  max_bundles: 4
+  max_pushes: 2
+  rate_limit_ms: 100
+  max_retries: 3
+  compression_threads: 0
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# The SUPERSET across every package here — which is also each package's own
+# set, because one release cuts all three tools for the same five targets.
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built. All three tools are pure-Go binaries built
+# without cgo, so upstream ships exactly ONE Linux build per (tool, arch) and
+# it is fully static: no PT_INTERP, no DT_NEEDED (evidence above each spec's
+# `assets:` block). They require nothing, so both Linux keys are BARE. Tagging
+# them `+libc.musl` would be a false requirement that hid them from every glibc
+# host; there is no glibc counterpart to split against.
+#
+# A bare key claims universality, so it must prove it: ubuntu (glibc) + alpine
+# (musl) + fedora (a different glibc vintage). The alpine leg IS the proof —
+# drop it and the universal claim is merely asserted.
+#
+# No windows/arm64: upstream ships no arm64 Windows binary for any of the three
+# tools at any version in range (verified at v0.9.0, v0.10.0, v0.11.0, v0.11.5).
+# A declared platform that resolves zero assets is SILENTLY SKIPPED, not an
+# error, so it would have looked green while publishing nothing.
+platforms:
+  linux/amd64:
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  linux/arm64:
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 — GitHub's
+    # native macos-13 Intel pool is exhausted, a queued leg never schedules,
+    # and `push` (needs: test) then deadlocks the whole mirror.
+    runner: macos-14
+    prefix: ["arch", "-x86_64"]
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures

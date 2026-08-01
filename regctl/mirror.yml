@@ -1,0 +1,105 @@
+extends: ../mirror-base.yml
+
+name: regctl
+
+# Logical index package `regclient/regctl` at the physical path
+# `ghcr.io/ocx-contrib/regclient/regctl` — slash segments, never
+# hyphen-flattened. The first segment must be this repo's own GitHub owner:
+# GITHUB_TOKEN only authorises packages owned by the repo the workflow runs in.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/regclient/regctl
+
+source:
+  # Same repository and same tag as regsync and regbot — one upstream release
+  # cuts all three binaries.
+  type: github_release
+  owner: regclient
+  repo: regclient
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# regctl is a pure-Go binary built without cgo, so upstream ships ONE Linux
+# build per arch and it is fully static. Measured on v0.11.5:
+#
+#   $ file regctl-linux-amd64
+#   ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, stripped
+#   $ readelf -l regctl-linux-amd64 | grep INTERP  → (none)
+#   $ readelf -d regctl-linux-amd64 | grep NEEDED  → (none)
+#
+# No PT_INTERP and no DT_NEEDED means the artifact requires nothing of the
+# host, so both Linux keys are BARE — no `+libc.*` suffix, and no glibc
+# counterpart to split against. Container legs (ubuntu + alpine + fedora) live
+# in ../mirror-base.yml and are what turn that claim into evidence.
+#
+# ─── Scope (verified at v0.9.0 — the floor — v0.10.0, v0.11.0 and v0.11.5) ──
+#
+# One release carries all three tools' binaries side by side, so the anchored
+# ^…$ patterns are the ONLY thing keeping regsync and regbot out of this spec —
+# an unanchored `regctl-linux-amd64` would still be fine, but an unanchored
+# `linux-amd64` would match all three and fail resolution as ambiguous.
+#
+# Upstream also publishes, and this mirror deliberately does not carry:
+#   regctl-linux-ppc64le, regctl-linux-riscv64, regctl-linux-s390x — no GHA runner
+#   regctl-freebsd-amd64                        — outside the OCX platform set
+#   metadata.tgz                                — sidecar, not a bundle
+#
+# There is no regctl-windows-arm64.exe at any version in range — hence no
+# windows/arm64 key. A declared platform matching zero assets is SILENTLY
+# skipped, not an error, so it would have read green while publishing nothing.
+#
+# Resolution verified BOTH ways at all four versions: each of the five patterns
+# matches EXACTLY one asset.
+assets:
+  linux/amd64:
+    - "^regctl-linux-amd64$"
+  linux/arm64:
+    - "^regctl-linux-arm64$"
+  darwin/amd64:
+    - "^regctl-darwin-amd64$"
+  darwin/arm64:
+    - "^regctl-darwin-arm64$"
+  windows/amd64:
+    - "^regctl-windows-amd64\\.exe$"
+
+asset_type:
+  # Raw binary on every platform — no archive to unpack. Renamed to `regctl`
+  # (regctl.exe on Windows; the .exe is appended automatically when the
+  # downloaded asset carries it).
+  type: binary
+  name: regctl
+
+# `off`, and it cannot be otherwise here. The scan only looks BELOW an
+# interface PATH entry of the form ${installPath}/<dir>, and a raw-binary
+# mirror has none — the executable IS the content root. `verify` or `auto`
+# would be rejected at spec load with exit 65. `off` with a hand-listed
+# `binaries` in metadata.json is the blessed shape for this asset type.
+bin_scan: off
+
+metadata:
+  default: metadata.json
+
+catalog:
+  logo: logo.svg
+
+versions:
+  # Same floor as the sibling specs: v0.9.0 is the oldest release carrying
+  # GitHub per-asset digests, which verify.github_asset_digest requires.
+  min: "0.9.0"
+  new_per_run: 5
+  # Staggered off the sibling specs (regsync :5, regbot :15).
+  poll_interval: "10 */6 * * *"
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — the opposite of
+  # `metadata.default` and `catalog.logo` above.
+  - name: smoke
+    script: regctl/tests/smoke.star
+
+annotations:
+  org.opencontainers.image.licenses: "Apache-2.0"
+
+announce:
+  package: regclient/regctl
+  fork: ocx-contrib/index
