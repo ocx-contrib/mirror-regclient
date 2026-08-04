@@ -6,7 +6,7 @@ name: regsync
 
 on:
   schedule:
-    - cron: '5 */6 * * *'
+    - cron: '30 0-23/6 * * *'
   workflow_dispatch:
   push:
     branches: [main]

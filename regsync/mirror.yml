@@ -97,7 +97,7 @@ versions:
   # Staggered off the sibling specs (regctl :10, regbot :15) so the three
   # mirrors here do not all poll on the same minute — one upstream, three
   # pollers.
-  poll_interval: "5 */6 * * *"
+  poll_interval: "30 0-23/6 * * *"
 
 tests:
   # `script:` resolves from the REPOSITORY ROOT — the opposite of

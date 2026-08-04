@@ -88,7 +88,7 @@ versions:
   min: "0.9.0"
   new_per_run: 5
   # Staggered off the sibling specs (regsync :5, regctl :10).
-  poll_interval: "15 */6 * * *"
+  poll_interval: "15 3-23/6 * * *"
 
 tests:
   # `script:` resolves from the REPOSITORY ROOT — the opposite of

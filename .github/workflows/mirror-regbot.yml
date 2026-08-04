@@ -6,7 +6,7 @@ name: regbot
 
 on:
   schedule:
-    - cron: '15 */6 * * *'
+    - cron: '15 3-23/6 * * *'
   workflow_dispatch:
   push:
     branches: [main]
